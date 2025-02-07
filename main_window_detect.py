@@ -25,7 +25,6 @@ def is_person_detected_by_ratio(mask, ratio_threshold=0.1):
     - ratio_threshold: この割合を超えたら「人がいる」とみなす (0.0～1.0)
     """
     # 不透明(255)ピクセル数
-    print(mask.shape)
     non_zero_count = np.count_nonzero(mask)
     total_count = mask.size  # マスク全体のピクセル数
 
@@ -84,16 +83,25 @@ def main(cam_id, device, model_path, model_path_tie,
     """conf for view"""
     bg = cv2.imread("background.jpg")
 
-    cv2.namedWindow("window", cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty("window", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    # window = True
+    window = False
+    if window:
+        cv2.namedWindow("window", cv2.WINDOW_NORMAL)
+        cv2.setWindowProperty("window", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    else:
+        bg = cv2.resize(bg, [target_size[0], target_size[1]], cv2.INTER_AREA)
 
     STATE_WAITING = 0
     STATE_DISPLAY_SILHOUETTE = 1
     STATE_PLAY_VIDEO = 2
     current_state = STATE_WAITING
 
-    center_hold_start_time = 0
-    start_time = 0
+    fade_in_end  = 2.0     # 2秒かけてフェードイン
+    hold_end     = 5.0     # 2秒後～5秒まで不透明度1.0で維持
+    fade_out_end = 30.0    # 5秒後～10秒まででフェードアウト
+        # 「人がいる」と判定するためのマスク割合の閾値 (例: 1%)
+    ratio_threshold = 0.01
+
 
     video_path = "./Ghost8.mp4"
 
@@ -110,71 +118,62 @@ def main(cam_id, device, model_path, model_path_tie,
         print("Error: Could not open webcam.")
         return
 
-    # 「人がいる」と判定するためのマスク割合の閾値 (例: 1%)
-    ratio_threshold = 0.1
-
     while True:
+        """共通処理"""
+        print(f"current_state: {current_state}")
         ret, frame = cap.read()
         if not ret:
             print("Error: Failed to capture image.")
             break
         
-        # 推論マスクを取得 (0 or 255 の二値)
-        mask, _ = video_inference.inference_frame(frame)
-        # マスク全体で(0以外)ピクセルが ratio_threshold 以上あるかどうか
-        is_detected = is_person_detected_by_ratio(mask, ratio_threshold)
-
+        """state分岐"""
         if current_state == STATE_WAITING: # 推論し続けるが、人が検出されない状態
             # 背景を表示して待機
             cv2.imshow("window", bg)
-
-            # 一度 is_detected が True になると、画面合成フェーズへ遷移
+            mask, _ = video_inference.inference_frame(frame)
+            is_detected = is_person_detected_by_ratio(mask, ratio_threshold)
+            # 一度 is_detected が True になると、画面合成フェーズへ遷移(次frameから)
+            print(f"is_detected: {is_detected}")
             if is_detected:
                 current_state = STATE_DISPLAY_SILHOUETTE
-
+                start = time.time()
         elif current_state == STATE_DISPLAY_SILHOUETTE:
-
-            fade_in_end  = 2.0     # 2秒かけてフェードイン
-            hold_end     = 5.0     # 2秒後～5秒まで不透明度1.0で維持
-            fade_out_end = 10.0    # 5秒後～10秒まででフェードアウト
-
-            if center_hold_start_time == 0:
-                center_hold_start_time = time.time()
+            mask, _ = video_inference.inference_frame(frame)
+            is_detected = is_person_detected_by_ratio(mask, ratio_threshold)
+            print(f"is_detected: {is_detected}")
+            if not is_detected: # 検出されなかったら戻る
+                current_state = STATE_WAITING
+                alpha = 0  # bgのみ映す
             else:
-                if is_detected:
-                    if center_hold_start_time < fade_in_end:
-                        # フェードイン (0→1)
-                        alpha = center_hold_start_time / fade_in_end
-                    elif center_hold_start_time < hold_end:
-                        # 完全表示 (1.0)
-                        alpha = 1.0
-                    elif center_hold_start_time < fade_out_end:
-                        # フェードアウト (1.0→0.0)
-                        alpha = 1.0 - (center_hold_start_time - hold_end) / (fade_out_end - hold_end)
-                    else:
-                        # フェードアウト完了 → 動画再生へ
-                        current_state = STATE_PLAY_VIDEO
-                        cap_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                        continue
-                    
-                    # 背景サイズに合わせてマスクをリサイズ
-                    bg_h, bg_w = bg.shape[:2]
-                    resized_mask = cv2.resize(mask, (bg_w, bg_h), interpolation=cv2.INTER_AREA)
-
-                    # シルエット合成
-                    silhouette_img = create_silhouette_alpha(
-                        resized_mask,
-                        offset_x=0,
-                        offset_y=0,
-                        bg=bg,
-                        silhouette_opacity=alpha
-                    )
-                    cv2.imshow("window", silhouette_img)
-
+                now = time.time()
+                center_hold_start_time = now - start
+                # 経過時間に合わせてalphaを設定 → 一定時間で動画に移行
+                if center_hold_start_time < fade_in_end:
+                    # フェードイン (0→1)
+                    alpha = center_hold_start_time / fade_in_end
+                elif center_hold_start_time < hold_end:
+                    # 完全表示 (1.0)
+                    alpha = 1.0
+                elif center_hold_start_time < fade_out_end:
+                    # フェードアウト (1.0→0.0)
+                    alpha = 1.0 - (center_hold_start_time - hold_end) / (fade_out_end - hold_end)
                 else:
-                    center_hold_start_time = 0
-                    current_state = STATE_WAITING
-
+                    # フェードアウト完了 → 動画再生へ
+                    current_state = STATE_PLAY_VIDEO
+                    cap_video.set(cv2.CAP_PROP_POS_FRAMES, 0)   # videoのframeのみ設定
+            # nowのシルエットを描画する
+            ## 背景サイズに合わせてマスクをリサイズ
+            bg_h, bg_w = bg.shape[:2]
+            resized_mask = cv2.resize(mask, (bg_w, bg_h), interpolation=cv2.INTER_AREA)
+            # シルエット合成
+            silhouette_img = create_silhouette_alpha(
+                resized_mask,
+                offset_x=0,
+                offset_y=0,
+                bg=bg,
+                silhouette_opacity=alpha
+            )
+            cv2.imshow("window", silhouette_img)
         elif current_state == STATE_PLAY_VIDEO:
             # 動画再生
             ret, video_frame = cap_video.read()
@@ -182,7 +181,7 @@ def main(cam_id, device, model_path, model_path_tie,
                 # 動画終了したら最初に戻す or WAITINGへ
                 cap_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 current_state = STATE_WAITING
-                continue
+                continue    # 何も移さずに次のframeへ
 
             # 背景と同じサイズにリサイズして表示
             video_frame_resized = cv2.resize(video_frame, (bg.shape[1], bg.shape[0]))
