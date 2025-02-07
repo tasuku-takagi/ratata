@@ -121,17 +121,6 @@ def main():
             if is_detected:
                 current_state = STATE_DISPLAY_SILHOUETTE
 
-            # if is_detected:
-            #     if center_hold_start_time == 0:
-            #         center_hold_start_time = time.time()
-            #     else:
-            #         if time.time() - center_hold_start_time > 2.0:
-            #             current_state = STATE_DISPLAY_SILHOUETTE
-            #             start_time = time.time()
-            #             center_hold_start_time = 0
-            # else:
-            #     center_hold_start_time = 0
-
         elif current_state == STATE_DISPLAY_SILHOUETTE:
 
             fade_in_end  = 2.0     # 2秒かけてフェードイン
@@ -186,6 +175,11 @@ def main():
             # 背景と同じサイズにリサイズして表示
             video_frame_resized = cv2.resize(video_frame, (bg.shape[1], bg.shape[0]))
             cv2.imshow("window", video_frame_resized)
+
+        # TODO: 後で実装
+        # elif current_state == STATE_AFTER_VIDEO: 
+        #     # ビデオ表示後、背景を動画の最終フレームとし、背景として表示。またこの間はmaskを合成しない。
+        #     # 一定時間待ったら背景が徐々に"background.jpg"が不透明度が上がっていき、不透明度が100%になったらcurrent_stateを0に戻す
 
         key = cv2.waitKey(1) & 0xFF
         if key == 27:  # ESC
