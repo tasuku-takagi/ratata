@@ -27,6 +27,7 @@ class VideoInferenceYolo:
         self.model = YOLO(model_path)
         self.prev_prediction = None
         self.iou_thr = 0.3
+        self.conf_thr = 0.8
         self.blur = blur
         # tie
         self.model_path_tie = model_path_tie
@@ -61,7 +62,8 @@ class VideoInferenceYolo:
         """
         # inference
         if frame is None:
-            return np.zeros(self.target_size).astype(np.uint8), (-1, -1)
+            output = np.zeros((self.target_size[1], self.target_size[0])).astype(np.uint8)
+            return output, (-1, output)
         if not self.debug:
             results = self.model.predict(frame,
                                         half=True,
@@ -77,18 +79,12 @@ class VideoInferenceYolo:
                                          )
         # 検出なしならゼロ絵を返す
         if results[0].masks is None:
-            return np.zeros(self.target_size).astype(np.uint8), (-1, -1)
-        masks = results[0].masks.data
+            output = np.zeros((self.target_size[1], self.target_size[0])).astype(np.uint8)
+            return output, (-1, output)
+        masks = results[0].masks.data   # torch.Tensor([ch, h, w])
+        confs = results[0].boxes.conf   # torch.Tensor([ch])
         # 直近の被写体に近いmaskを探す
-        if self.prev_prediction is None:
-            output = masks[0]
-            iou = 1
-        else:
-            output, iou = self.find_most_similar_iou(self.prev_prediction, masks)
-        if iou > 0.5:   # 追っていた被写体がまだいる判定
-            self.prev_prediction = output
-        else:       # 追っていた被写体はいなくなった
-            self.prev_prediction = None
+        output, iou = self.update_prev_prediction(masks, confs)
         # tieをpersonに合体
         if self.model_tie is not None:
             output = self.combine_tie(frame, output)
@@ -115,6 +111,43 @@ class VideoInferenceYolo:
         if self.hflip:
             output = output[:, ::-1]
         return output.astype(np.uint8), (iou, trimap)
+    
+    def update_prev_prediction(self, masks, confs):
+        # prev_predictionに近いmaskをmasksから選択する
+        if self.prev_prediction is None:    # 初期状態 → 中央付近のmasksを選択
+            output = self.select_mask_based_on_centroid(masks, confs)
+            iou = 1
+        else:   # prev_maskに最も近いmaskを探す
+            output, iou = self.find_most_similar_iou(self.prev_prediction, masks)
+        # prev_predictionの更新
+        if iou > self.iou_thr:   # 追っていた被写体がまだいる判定
+            self.prev_prediction = output
+        else:       # 追っていた被写体はいなくなった
+            self.prev_prediction = None
+        return output,  iou
+    
+    def select_mask_based_on_centroid(self, masks, confs):
+        valid_channels = confs > self.conf_thr
+        # confがconf_thrを超えるindexが2つ以上ある場合
+        if valid_channels.sum() > 1:
+            # 中央座標
+            h, w = masks.shape[1], masks.shape[2]
+            center = torch.tensor([h / 2, w / 2])
+            # valid_channelsに対応するマスクのcentroidを計算
+            centroids = []
+            for ch in range(masks.shape[0]):
+                if valid_channels[ch]:
+                    mask = masks[ch, :, :]
+                    centroid = self.compute_centroid(mask)
+                    centroids.append((ch, centroid))
+            # 画像の中央に最も近いcentroidを持つchを選択
+            selected_ch, _ = min(centroids, key=lambda x: torch.dist(x[1], center))
+            # 選択されたchのmaskを返す
+            return masks[selected_ch, :, :]
+        else:
+            # confが閾値を超えるchが複数無い場合は、最大のconfを持つmaskを返す
+            max_conf_ch = torch.argmax(confs)
+            return masks[max_conf_ch, :, :]
     
     def get_matt(self, frame, mask):
         trimap = (self.get_trimap(mask) * 255).astype(np.uint8)
