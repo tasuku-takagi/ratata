@@ -1,10 +1,22 @@
+import argparse
+
 import cv2
 import numpy as np
 import time
 
+import torch
+
 import sys
 sys.path.append("../")
-from ratata.inference.video_inference import VideoInference
+from ratata.inference.video_inference import VideoInferenceYolo
+from ratata.config import load_config
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config_path", help="Path to the config.yml")
+    parser.add_argument("cam_id", help="cam_id")
+    return parser.parse_args()
+
 
 def is_person_detected_by_ratio(mask, ratio_threshold=0.1):
     """
@@ -13,6 +25,7 @@ def is_person_detected_by_ratio(mask, ratio_threshold=0.1):
     - ratio_threshold: この割合を超えたら「人がいる」とみなす (0.0～1.0)
     """
     # 不透明(255)ピクセル数
+    print(mask.shape)
     non_zero_count = np.count_nonzero(mask)
     total_count = mask.size  # マスク全体のピクセル数
 
@@ -65,7 +78,10 @@ def create_silhouette_alpha(gray_mask, offset_x, offset_y, bg, silhouette_opacit
     return out_img
 
 
-def main():
+def main(cam_id, device, model_path, model_path_tie, 
+         target_size, blur, matt, enhance, debug):
+    
+    """conf for view"""
     bg = cv2.imread("background.jpg")
 
     cv2.namedWindow("window", cv2.WINDOW_NORMAL)
@@ -79,21 +95,16 @@ def main():
     center_hold_start_time = 0
     start_time = 0
 
-    cam_id = 1
-    model_path = "./models/model.pt"
-    target_size = (480, 270)
-    # device = "cuda:0"
-    device = "cpu"
-    quantize = False
-
-    video_path = "./Ghost7.mov"
+    video_path = "./Ghost8.mp4"
 
     # VideoCapture
     cap_video = cv2.VideoCapture(video_path)
     if not cap_video.isOpened():
         raise FileNotFoundError("動画ファイルが見つからないか、読み込みに失敗しました: " + video_path)
 
-    video_inference = VideoInference(model_path, target_size, device=device, quantize=quantize, slog3=False)
+    video_inference = VideoInferenceYolo(model_path, target_size, device=device, hflip=True,
+                                         blur=blur, model_path_tie=model_path_tie, debug=debug,
+                                         matt=matt, enhance=enhance)
     cap = cv2.VideoCapture(cam_id)
     if not cap.isOpened():
         print("Error: Could not open webcam.")
@@ -109,7 +120,7 @@ def main():
             break
         
         # 推論マスクを取得 (0 or 255 の二値)
-        mask = video_inference.inference_frame(frame)
+        mask, _ = video_inference.inference_frame(frame)
         # マスク全体で(0以外)ピクセルが ratio_threshold 以上あるかどうか
         is_detected = is_person_detected_by_ratio(mask, ratio_threshold)
 
@@ -196,4 +207,8 @@ def main():
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    config = load_config(args.config_path)
+    main(int(args.cam_id), device, config.model_path, config.model_path_tie, 
+         config.target_size, config.blur, config.matt, config.enhance, config.debug)
