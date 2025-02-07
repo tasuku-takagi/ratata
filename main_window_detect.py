@@ -172,6 +172,7 @@ def main(cam_id, device, model_path, model_path_tie,
                     cv2.imshow("window", silhouette_img)
 
                 else:
+                    center_hold_start_time = 0
                     current_state = STATE_WAITING
 
         elif current_state == STATE_PLAY_VIDEO:
