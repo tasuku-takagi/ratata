@@ -1,0 +1,11 @@
+# for video_inference
+## rootからの相対path or 絶対path
+model_path: "./models/yolo/yolo11m-seg.pt"
+model_path_tie: "./models/yolo/yolo11m-seg.pt"
+target_size: [1280, 720]    # HD
+## None or soft or GussianBlur
+blur: "soft"
+matt: true
+enhance: true
+## Trueにすると全クラス認識
+debug: false
