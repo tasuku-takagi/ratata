@@ -15,7 +15,7 @@ TODO: 後段のmaskを後処理する部分の実装
 ```$ conda activate test```  
 ```$ python main.py {config_path} {cam_id}```  
 ex.  
-```python main.py ./configs/ver2.yml 1```  
+```$ python main.py ./configs/ver2.yml 1```  
 qを押せば終了  
 
 ## config.yml  
@@ -34,3 +34,6 @@ binary_maskは, ndArray[config.target_size[1], config.target_size[0]] as type(np
 ```$ python tools/video_inference.py {config_path} {path_to_the_video}```  
 ex.  
 ```python tools/inference_video.py ./configs/ver2.yml ./data/test_video/src/```  
+
+## main_window_detect.py  
+```$ python main_window_detect.py ./configs/ver2_soft_blur.yml 2```  

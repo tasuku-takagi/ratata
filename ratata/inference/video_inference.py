@@ -100,12 +100,10 @@ class VideoInferenceYolo:
         output = output.astype(np.uint8)
         # blur
         if self.blur == "GaussianBlur":
-            print("GussianBlur")
             output = self.gaussian_blur(output)
         elif self.blur == "DistTransform":
             output == self.dist_transform(output)
         elif self.blur == "soft":
-            print("soft")
             output = self.soft_blur(output)
         output = cv2.resize(output, self.target_size, interpolation=cv2.INTER_AREA)
         if self.hflip:
@@ -244,13 +242,11 @@ class VideoInferenceYolo:
             else:
                 self.prev_prediction_tie = torch.zeros(mask_person.shape).to(self.device)
                 self.tie_no_detection_count = self.tie_no_detection_count # fail-safe
-            print(self.tie_no_detection_count)
             return self.prev_prediction_tie
         masks_tie = results_tie[0].masks.data
         closest_mask_tie, _ = self.find_closest_tie(mask_person, masks_tie)
         self.prev_prediction_tie = closest_mask_tie # 最新のtie-maskを更新
         self.tie_no_detection_count = 0
-        print(self.tie_no_detection_count)
         return closest_mask_tie
 
     def compute_centroid(self, mask):
