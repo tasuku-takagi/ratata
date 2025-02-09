@@ -78,10 +78,12 @@ def create_silhouette_alpha(gray_mask, offset_x, offset_y, bg, silhouette_opacit
 
 
 def main(cam_id, device, model_path, model_path_tie, 
-         target_size, blur, matt, enhance, debug):
+         target_size, blur, matt, enhance, debug, 
+         fade_in_end, hold_end, fade_out_end, ratio_threshold, 
+         bg_image_path, video_path):
     
     """conf for view"""
-    bg = cv2.imread("background.jpg")
+    bg = cv2.imread(bg_image_path)
 
     # window = True
     window = False
@@ -95,15 +97,6 @@ def main(cam_id, device, model_path, model_path_tie,
     STATE_DISPLAY_SILHOUETTE = 1
     STATE_PLAY_VIDEO = 2
     current_state = STATE_WAITING
-
-    fade_in_end  = 2.0     # 2秒かけてフェードイン
-    hold_end     = 5.0     # 2秒後～5秒まで不透明度1.0で維持
-    fade_out_end = 30.0    # 5秒後～10秒まででフェードアウト
-        # 「人がいる」と判定するためのマスク割合の閾値 (例: 1%)
-    ratio_threshold = 0.01
-
-
-    video_path = "./Ghost8.mp4"
 
     # VideoCapture
     cap_video = cv2.VideoCapture(video_path)
@@ -205,4 +198,6 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     config = load_config(args.config_path)
     main(int(args.cam_id), device, config.model_path, config.model_path_tie, 
-         config.target_size, config.blur, config.matt, config.enhance, config.debug)
+         config.target_size, config.blur, config.matt, config.enhance, config.debug,
+         config.fade_in_end, config.hold_end, config.fade_out_end, config.ratio_threshold,
+         config.bg_image_path, config.video_path)

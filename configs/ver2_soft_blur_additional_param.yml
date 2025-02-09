@@ -1,0 +1,20 @@
+# for video_inference
+## rootからの相対path or 絶対path
+model_path: "./models/yolo/yolo11m-seg.pt"
+model_path_tie: "./models/yolo/yolo11m-seg.pt"
+target_size: [1280, 720]    # HD
+## None or soft or GussianBlur
+blur: "soft"
+matt: true
+enhance: true
+## Trueにすると全クラス認識
+debug: false
+## マスク重畳描画に関する時間
+fade_in_end : 2.0     # 2秒かけてフェードイン
+hold_end    : 20.0     # 2秒後～20秒まで不透明度1.0で維持
+fade_out_end: 30.0    # 20秒後～30秒まででフェードアウト
+## 人がいる事の検出に関するパラメータ
+ratio_threshold: 0.01  # マスク画像のうち(0,0,0)でないピクセル個数の割合(デフォルトは1%に設定)
+## 表示する素材のパス
+bg_image_path: "./background.jpg"
+video_path: "./Ghost8.mp4"
