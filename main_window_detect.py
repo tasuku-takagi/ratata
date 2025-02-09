@@ -15,6 +15,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("config_path", help="Path to the config.yml")
     parser.add_argument("cam_id", help="cam_id")
+    parser.add_argument("--offset_y", type=int, default=0, help="Offset in y direction for mask blending")
     return parser.parse_args()
 
 
@@ -80,7 +81,7 @@ def create_silhouette_alpha(gray_mask, offset_x, offset_y, bg, silhouette_opacit
 def main(cam_id, device, model_path, model_path_tie, 
          target_size, blur, matt, enhance, debug, 
          fade_in_end, hold_end, fade_out_end, ratio_threshold, 
-         bg_image_path, video_path):
+         bg_image_path, video_path, offset_x, offset_y):
     
     """conf for view"""
     bg = cv2.imread(bg_image_path)
@@ -161,8 +162,8 @@ def main(cam_id, device, model_path, model_path_tie,
             # シルエット合成
             silhouette_img = create_silhouette_alpha(
                 resized_mask,
-                offset_x=0,
-                offset_y=0,
+                offset_x=offset_x,
+                offset_y=offset_y,
                 bg=bg,
                 silhouette_opacity=alpha
             )
@@ -200,4 +201,4 @@ if __name__ == "__main__":
     main(int(args.cam_id), device, config.model_path, config.model_path_tie, 
          config.target_size, config.blur, config.matt, config.enhance, config.debug,
          config.fade_in_end, config.hold_end, config.fade_out_end, config.ratio_threshold,
-         config.bg_image_path, config.video_path)
+         config.bg_image_path, config.video_path, args.offset_y)
