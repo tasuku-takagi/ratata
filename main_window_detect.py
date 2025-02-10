@@ -9,6 +9,7 @@ import torch
 import sys
 sys.path.append("../")
 from ratata.inference.video_inference import VideoInferenceYolo
+from ratata.production import SrcSelector
 from ratata.config import load_config
 
 def parse_args():
@@ -81,13 +82,15 @@ def create_silhouette_alpha(gray_mask, offset_x, offset_y, bg, silhouette_opacit
 def main(cam_id, device, model_path, model_path_tie, 
          target_size, blur, matt, enhance, debug, 
          fade_in_end, hold_end, fade_out_end, ratio_threshold, 
-         bg_image_path, video_path, offset_x, offset_y):
+         offset_x, offset_y,
+         bg_dir, bg_names, video_dir, video_names,
+         window):
     
-    """conf for view"""
-    bg = cv2.imread(bg_image_path)
+    """first sample"""
+    src_selector = SrcSelector(bg_dir, bg_names, video_dir, video_names)
+    bg_path, video_path = src_selector.get_next_src()
+    bg = cv2.imread(bg_path)
 
-    # window = True
-    window = False
     if window:
         cv2.namedWindow("window", cv2.WINDOW_NORMAL)
         cv2.setWindowProperty("window", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -172,9 +175,13 @@ def main(cam_id, device, model_path, model_path_tie,
             # 動画再生
             ret, video_frame = cap_video.read()
             if not ret:
-                # 動画終了したら最初に戻す or WAITINGへ
-                cap_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                # 動画終了したらWAITINGへ
                 current_state = STATE_WAITING
+                """videoとbgを次のものに変える"""
+                cap_video.release()
+                bg_path, video_path = src_selector.get_next_src()
+                bg = cv2.imread(bg_path)
+                cap_video = cv2.VideoCapture(video_path)
                 continue    # 何も移さずに次のframeへ
 
             # 背景と同じサイズにリサイズして表示
@@ -201,4 +208,7 @@ if __name__ == "__main__":
     main(int(args.cam_id), device, config.model_path, config.model_path_tie, 
          config.target_size, config.blur, config.matt, config.enhance, config.debug,
          config.fade_in_end, config.hold_end, config.fade_out_end, config.ratio_threshold,
-         config.bg_image_path, config.video_path, args.offset_y)
+         config.offset_x, args.offset_y,
+         config.bg_dir, config.bg_names, config.video_dir, config.video_names,
+         config.window)
+    

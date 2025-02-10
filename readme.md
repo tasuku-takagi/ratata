@@ -36,4 +36,4 @@ ex.
 ```python tools/inference_video.py ./configs/ver2.yml ./data/test_video/src/```  
 
 ## main_window_detect.py  
-```$ python main_window_detect.py ./configs/ver2_soft_blur.yml 2```  
+```$ python main_window_detect.py ./configs/ver2_soft_blur_additional_param.yml 2```  
