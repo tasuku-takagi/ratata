@@ -10,5 +10,5 @@ yolo11x-seg.pt
 *__pycache__*
 
 venv/*
-*.mov
+
 *.zip
